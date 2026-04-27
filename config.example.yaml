@@ -1,0 +1,35 @@
+runtime:
+  poll_interval_sec: 2
+  min_text_chars: 6
+  unchanged_skip_sec: 20
+  post_send_cooldown_sec: 3
+  real_send: true
+  post_session_click_delay_sec: 0.45
+  red_badge_min_pixels: 5
+  self_bubble_side: right
+  side_split_x_ratio: 0.6
+  debug_llm: false
+  partner_bottom_window_ratio: 0.45
+  self_echo_guard_sec: 12
+  enable_llm: true
+screen:
+  chat_region:
+    left: 200
+    top: 180
+    width: 700
+    height: 760
+  input_box_point:
+    x: 620
+    y: 980
+llm:
+  api_base: https://api.openai.com/v1
+  api_key: ""
+  api_style: chat_completions
+  model: gpt-4.1-mini
+  temperature: 0.5
+  max_output_tokens: 200
+  system_prompt: '你是一个聊天助手，目标是生成简洁、礼貌、自然的中文回复。
+
+    回复长度控制在 1~2 句，除非问题复杂。
+
+    '

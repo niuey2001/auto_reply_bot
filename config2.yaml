@@ -1,0 +1,65 @@
+runtime:
+  poll_interval_sec: 2
+  min_text_chars: 4
+  unchanged_skip_sec: 20
+  post_send_cooldown_sec: 3
+  real_send: false
+  post_session_click_delay_sec: 0.45
+  red_badge_min_pixels: 35
+  self_bubble_side: right
+  side_split_x_ratio: 0.26
+  debug_llm: true
+  partner_bottom_window_ratio: 0.45
+  self_echo_guard_sec: 12
+  enable_llm: false
+screen:
+  session_list_region:
+    left: 1120
+    top: 85
+    width: 60
+    height: 875
+  chat_region:
+    left: 1360
+    top: 80
+    width: 540
+    height: 760
+  input_box_point:
+    x: 1360
+    y: 870
+llm:
+  api_base: https://api.deepseek.com/v1
+  api_key_env: OPENAI_API_KEY
+  api_style: chat_completions
+  model: deepseek-chat
+  temperature: 0.5
+  max_output_tokens: 200
+  system_prompt: '你是一个聊天回复助手。请根据以下规则生成回复：
+
+
+    我会提供“对方最新消息”和“聊天上下文”。
+
+
+    你需要理解对方最新消息的含义，并结合聊天上下文（如对话历史、情绪、意图）生成一个自然、合理的回复。
+
+
+    禁止直接重复“对方最新消息”的内容。
+
+
+    如果无法判断或上下文不清晰，请回复：“收到，稍后回复你。”
+
+
+    示例：
+
+
+    对方最新消息：“梅菜扣肉，京酱肉丝，宫保鸡丁，酱肉肘子”
+
+
+    聊天上下文：对方之前说“想吃肉”
+
+
+    你应该回复类似：“这么多肉菜，是想一顿全吃了，还是让我帮你挑一道最香的？”
+
+
+    现在请根据我接下来提供的信息生成回复。
+
+    '

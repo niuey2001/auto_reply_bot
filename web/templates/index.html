@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Auto Reply Bot 控制台</title>
+  <link rel="stylesheet" href="/static/app.css" />
+</head>
+
+<body>
+  <main class="container">
+    <h1>Auto Reply Bot 控制台</h1>
+    <p class="hint">主界面展示运行状态和日志，配置项在弹窗中编辑。</p>
+
+    <section class="card">
+      <h2>机器人状态</h2>
+      <div class="row">
+        <button id="openConfigBtn">配置表单</button>
+        <button id="startBtn" class="primary">启动</button>
+        <button id="stopBtn" class="danger">停止</button>
+        <button id="refreshBtn">刷新状态</button>
+      </div>
+      <div id="status" class="status">读取中...</div>
+    </section>
+
+    <section class="card">
+      <h2>运行日志</h2>
+      <pre id="logs"></pre>
+    </section>
+  </main>
+
+  <div id="configModal" class="modal hidden">
+    <div class="modal-mask" id="closeModalMask"></div>
+    <section class="modal-panel">
+      <div class="modal-header">
+        <h2>配置文件</h2>
+        <button id="closeConfigBtn">关闭</button>
+      </div>
+      <div class="row">
+        <label for="configPath">路径</label>
+        <input id="configPath" type="text" value="config.yaml" />
+        <button id="loadFormBtn">加载表单</button>
+        <button id="saveFormBtn" class="primary">保存表单</button>
+      </div>
+      <p class="hint minor">仅支持表单配置，不再提供 YAML 直接编辑。</p>
+      <div id="configForm" class="config-form"></div>
+    </section>
+  </div>
+
+  <script>
+    const configModal = document.getElementById("configModal");
+    const configPathInput = document.getElementById("configPath");
+    const configForm = document.getElementById("configForm");
+    const statusEl = document.getElementById("status");
+    const logsEl = document.getElementById("logs");
+    let formFields = [];
+    let autoScrollLogs = true;
+
+    async function getJson(url, options = {}) {
+      const res = await fetch(url, options);
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || data.message || "请求失败");
+      }
+      return data;
+    }
+
+    function normalizeInputValue(value, inputType) {
+      if (inputType === "checkbox") {
+        return Boolean(value);
+      }
+      if (inputType === "number") {
+        const n = Number(value);
+        return Number.isNaN(n) ? 0 : n;
+      }
+      return value;
+    }
+
+    function inferInputType(field, value) {
+      if (field.type) return field.type;
+      if (typeof value === "boolean") return "checkbox";
+      if (typeof value === "number") return "number";
+      return "text";
+    }
+
+    function renderForm(fields, values) {
+      formFields = fields || [];
+      configForm.innerHTML = "";
+      for (const field of formFields) {
+        const row = document.createElement("div");
+        row.className = "form-row";
+
+        const label = document.createElement("label");
+        label.className = "field-label";
+        label.setAttribute("for", `field-${field.key}`);
+        label.textContent = field.label;
+
+        const hint = document.createElement("div");
+        hint.className = "field-hint";
+        hint.textContent = `${field.key}：${field.hint}`;
+
+        const value = values?.[field.key];
+        const inputType = inferInputType(field, value);
+        let input;
+        if (inputType === "textarea") {
+          input = document.createElement("textarea");
+          input.className = "field-textarea";
+        } else {
+          input = document.createElement("input");
+          input.type = inputType;
+        }
+        input.id = `field-${field.key}`;
+        input.dataset.key = field.key;
+        input.dataset.type = inputType;
+        if (inputType === "checkbox") {
+          input.checked = Boolean(value);
+        } else if (value !== undefined && value !== null) {
+          input.value = String(value);
+        } else {
+          input.value = "";
+        }
+
+        row.appendChild(label);
+        row.appendChild(input);
+        row.appendChild(hint);
+        configForm.appendChild(row);
+      }
+    }
+
+    function collectFormValues() {
+      const values = {};
+      for (const field of formFields) {
+        const input = document.getElementById(`field-${field.key}`);
+        if (!input) continue;
+        const t = input.dataset.type;
+        if (t === "checkbox") {
+          values[field.key] = normalizeInputValue(input.checked, t);
+        } else {
+          values[field.key] = normalizeInputValue(input.value, t);
+        }
+      }
+      return values;
+    }
+
+    async function loadForm() {
+      const path = configPathInput.value.trim() || "config.yaml";
+      const data = await getJson(`/api/config/form?path=${encodeURIComponent(path)}`);
+      renderForm(data.fields, data.values);
+    }
+
+    async function saveForm() {
+      const path = configPathInput.value.trim() || "config.yaml";
+      const values = collectFormValues();
+      await getJson("/api/config/form", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path, values }),
+      });
+      alert("表单配置已保存");
+    }
+
+    function openConfigModal() {
+      configModal.classList.remove("hidden");
+      loadForm().catch((e) => alert(e.message));
+    }
+
+    function closeConfigModal() {
+      configModal.classList.add("hidden");
+    }
+
+    function renderStatus(payload) {
+      const s = payload.data;
+      statusEl.textContent = s.running
+        ? `运行中 | PID: ${s.pid} | 已运行: ${s.uptime_sec}s | 配置: ${s.config_path}`
+        : "未运行";
+      logsEl.textContent = (s.logs || []).join("\n");
+      if (autoScrollLogs) {
+        logsEl.scrollTop = logsEl.scrollHeight;
+      }
+    }
+
+    async function refreshStatus() {
+      const payload = await getJson("/api/bot/status");
+      renderStatus(payload);
+    }
+
+    async function startBot() {
+      const config_path = configPathInput.value.trim() || "config.yaml";
+      const payload = await getJson("/api/bot/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ config_path }),
+      });
+      renderStatus(payload);
+    }
+
+    async function stopBot() {
+      const payload = await getJson("/api/bot/stop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      renderStatus(payload);
+    }
+
+    document.getElementById("loadFormBtn").addEventListener("click", () =>
+      loadForm().catch((e) => alert(e.message))
+    );
+    document.getElementById("saveFormBtn").addEventListener("click", () =>
+      saveForm().catch((e) => alert(e.message))
+    );
+    document.getElementById("refreshBtn").addEventListener("click", () =>
+      refreshStatus().catch((e) => alert(e.message))
+    );
+    document.getElementById("startBtn").addEventListener("click", () =>
+      startBot().catch((e) => alert(e.message))
+    );
+    document.getElementById("stopBtn").addEventListener("click", () =>
+      stopBot().catch((e) => alert(e.message))
+    );
+    document.getElementById("openConfigBtn").addEventListener("click", openConfigModal);
+    document.getElementById("closeConfigBtn").addEventListener("click", closeConfigModal);
+    document.getElementById("closeModalMask").addEventListener("click", closeConfigModal);
+
+    // Auto-scroll log view unless user scrolls up.
+    logsEl.addEventListener("scroll", () => {
+      const threshold = 20;
+      const atBottom = logsEl.scrollTop + logsEl.clientHeight >= logsEl.scrollHeight - threshold;
+      autoScrollLogs = atBottom;
+    });
+
+    refreshStatus()
+      .catch((e) => {
+        statusEl.textContent = `初始化失败: ${e.message}`;
+      });
+
+    setInterval(() => {
+      refreshStatus().catch(() => { });
+    }, 3000);
+  </script>
+</body>
+
+</html>

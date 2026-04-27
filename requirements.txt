@@ -1,0 +1,8 @@
+pyautogui
+pyperclip
+requests
+PyYAML
+mss
+rapidocr-onnxruntime
+numpy
+flask
